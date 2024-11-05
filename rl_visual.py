@@ -1,8 +1,11 @@
 import argparse
 import os
 import pandas as pd
-from bokeh.io import curdoc, output_notebook, output_file, show, save
-from bokeh.plotting import figure
+#from bokeh.io import curdoc, output_notebook, output_file, show, save
+#from bokeh.plotting import figure
+#from bokeh.io import export_png
+from selenium import webdriver
+import matplotlib.pyplot as plt
 
 def get_title(portfolio: str, approach: str, predict: bool) -> str:
     """Generate dynamic title based on portfolio and approach."""
@@ -14,24 +17,28 @@ def get_title(portfolio: str, approach: str, predict: bool) -> str:
 
 def plot_daily_nav(df_list: list, stocks: list, output_path: str, title: str, x_col='Date'):
     """Plot daily net asset value comparison for the given dataframes and stocks."""
-    p = figure(title=title, x_axis_type='datetime',
-               background_fill_color="#fafafa", width=1000, height=600)
-
+    plt.figure(figsize=(16, 9))
+    
     # Plotting the RL rebalanced portfolio
-    p.line(df_list[0][x_col], df_list[0]['Net'].values.tolist(), legend_label="RL rebalanced",
-           line_color="black", line_width=2)
+    plt.plot(df_list[0][x_col], df_list[0]['Net'].values, label="RL rebalanced", color="black", linewidth=2)
 
     # Colors for different stocks
     colors = ["red", "orange", "olivedrab", "blue", "purple"]
     for i, stock in enumerate(stocks):
-        p.line(df_list[1][x_col], df_list[1][stock].values.tolist(), legend_label=stock,
-               line_color=colors[i % len(colors)], line_width=2)
+        plt.plot(df_list[1][x_col], df_list[1][stock].values, label=stock, color=colors[i % len(colors)], linewidth=2)
 
-    p.legend.location = "top_left"
-    p.legend.click_policy = "hide"
-    p.grid.grid_line_alpha = 0.3
-    output_file(output_path)
-    show(p)
+    plt.title(title)
+    plt.xlabel('Date')
+    plt.ylabel('Net Asset Value')
+    plt.legend(loc="upper left")
+    plt.grid(alpha=0.3)
+    
+    # Rotate and align the tick labels so they look better
+    plt.gcf().autofmt_xdate()
+    
+    # Save as JPG
+    plt.savefig(output_path, format='jpg', dpi=300, bbox_inches='tight')
+    plt.close()
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize portfolio performance")
@@ -68,7 +75,7 @@ def main():
         title = get_title(portfolio, approach, predict)
 
         # Define output file path for the visualization
-        output_path = f'{folder_path}/daily_nav_comp_{approach}_{"predicted" if predict else "non_predicted"}.html'
+        output_path = f'{folder_path}/daily_nav_comp_{approach}_{"predicted" if predict else "non_predicted"}.jpg'
         
         # Generate the plot
         plot_daily_nav(df_list, stocks, output_path, title)
