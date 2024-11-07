@@ -4,14 +4,13 @@ import pandas as pd
 #from bokeh.io import curdoc, output_notebook, output_file, show, save
 #from bokeh.plotting import figure
 #from bokeh.io import export_png
-from selenium import webdriver
 import matplotlib.pyplot as plt
 
 def get_title(portfolio: str, approach: str, predict: bool) -> str:
     """Generate dynamic title based on portfolio and approach."""
     portfolio_num = portfolio.replace('portfolio', '')
     approach_desc = 'with Prediction Model' if predict else 'without Prediction Model'
-    approach_name = 'Gradual' if approach == 'Gradual Rebalancing' else 'Full Rebalancing'
+    approach_name = 'Gradual Rebalancing' if approach == 'gradual' else 'Full Rebalancing'
     
     return f"Portfolio {portfolio_num} Net Asset Comparison - {approach_name} {approach_desc}"
 
@@ -53,7 +52,7 @@ def main():
     approach = args.approach
     predict = args.predict
 
-    # Base path for data files
+     # Base path for data files
     base_path = f'data/rl/{portfolio}'
     
     # Determine the correct subfolder based on approach and predict arguments
