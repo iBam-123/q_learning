@@ -8,7 +8,7 @@ from util.algo_dataset import get_algo_dataset
 
 def read_rl_results(portfolio_num):
     """Read RL results for the given portfolio."""
-    rl_path = f'data/rl/portfolio{portfolio_num+1}/lagged/daily_nav_comp_gradual_non_predicted.csv'
+    rl_path = f'data/rl/portfolio{portfolio_num+1}/lagged/daily_nav.csv'
     if os.path.exists(rl_path):
         try:
             rl_df = pd.read_csv(rl_path, parse_dates=['Date'])
@@ -19,8 +19,23 @@ def read_rl_results(portfolio_num):
         print(f"RL results file not found: {rl_path}")
     return None
 
+def calculate_sharpe_ratio(returns, risk_free_rate=0.02):
+    """
+    Calculate annualized Sharpe Ratio
+    """
+    daily_rf = risk_free_rate/252
+    excess_returns = returns - daily_rf
+    return np.sqrt(252) * np.mean(excess_returns) / np.std(excess_returns)
+
+def calculate_return_drawdown_correlation(returns, drawdowns):
+    """
+    Calculate correlation between returns and drawdowns
+    """
+    return np.corrcoef(returns, drawdowns)[0,1]
+
+
 def calculate_nav_metrics(df):
-    """Calculate Total Return and Max Drawdown for a given DataFrame."""
+    """Calculate Total Return, Max Drawdown, Sharpe Ratio, and Return-Drawdown Correlation."""
     if 'Net' not in df.columns:
         if 'Close' in df.columns:
             df['Net'] = df['Close']
@@ -29,16 +44,30 @@ def calculate_nav_metrics(df):
         else:
             raise ValueError("DataFrame does not contain 'Net', 'Close', or 'NAV' column")
 
+    # Calculate Daily Return and Total Return
     df['Daily Return'] = df['Net'].pct_change()
     total_return = (df['Net'].iloc[-1] / df['Net'].iloc[0] - 1) * 100
     
+    # Calculate Max Drawdown
     df['Cumulative Return'] = (1 + df['Daily Return']).cumprod()
     df['Drawdown'] = (df['Cumulative Return'].cummax() - df['Cumulative Return']) / df['Cumulative Return'].cummax()
     max_drawdown = df['Drawdown'].max() * 100
     
+    # Calculate Sharpe Ratio
+    daily_returns = df['Daily Return'].dropna()
+    sharpe_ratio = calculate_sharpe_ratio(daily_returns)
+    
+    # Calculate Return-Drawdown Correlation
+    correlation = calculate_return_drawdown_correlation(
+        df['Daily Return'].dropna(),
+        df['Drawdown'].iloc[1:].values
+    )
+    
     return {
         'Total Return (%)': total_return,
-        'Max Drawdown (%)': max_drawdown
+        'Max Drawdown (%)': max_drawdown,
+        'Sharpe Ratio': sharpe_ratio,
+        'Return-DD Correlation': correlation
     }
 
 def compare_portfolio_assets(portfolio_num):
@@ -87,16 +116,17 @@ def compare_portfolio_assets(portfolio_num):
     
     # Print results
     print(f"\nPerformance Comparison for Portfolio {portfolio_num+1}")
-    print("-" * 60)
-    print(f"{'Asset/Strategy':<15} {'Total Return (%)':<20} {'Max Drawdown (%)':<20}")
-    print("-" * 60)
+    print("-" * 80)
+    print(f"{'Asset/Strategy':<15} {'Total Return (%)':<15} {'Max Drawdown (%)':<15} {'Sharpe Ratio':<15} {'Return-DD Corr':<15}")
+    print("-" * 80)
     
     for asset, metrics in results.items():
-        print(f"{asset:<15} {metrics['Total Return (%)']:>18.2f} {metrics['Max Drawdown (%)']:>19.2f}")
+        print(f"{asset:<15} {metrics['Total Return (%)']:>13.2f} {metrics['Max Drawdown (%)']:>14.2f} "
+              f"{metrics['Sharpe Ratio']:>14.2f} {metrics['Return-DD Correlation']:>14.2f}")
     
-    # Plotting
+    # Update plotting
     if results:
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         
         # Total Return comparison
         returns = [metrics['Total Return (%)'] for metrics in results.values()]
@@ -111,6 +141,20 @@ def compare_portfolio_assets(portfolio_num):
         ax2.set_title(f'Max Drawdown Comparison - Portfolio {portfolio_num+1}')
         ax2.set_ylabel('Max Drawdown (%)')
         ax2.tick_params(axis='x', rotation=45)
+        
+        # Sharpe Ratio comparison
+        sharpe_ratios = [metrics['Sharpe Ratio'] for metrics in results.values()]
+        ax3.bar(results.keys(), sharpe_ratios)
+        ax3.set_title('Sharpe Ratio Comparison')
+        ax3.set_ylabel('Sharpe Ratio')
+        ax3.tick_params(axis='x', rotation=45)
+        
+        # Return-DD Correlation comparison
+        correlations = [metrics['Return-DD Correlation'] for metrics in results.values()]
+        ax4.bar(results.keys(), correlations)
+        ax4.set_title('Return-Drawdown Correlation')
+        ax4.set_ylabel('Correlation')
+        ax4.tick_params(axis='x', rotation=45)
         
         plt.tight_layout()
         plt.show()
